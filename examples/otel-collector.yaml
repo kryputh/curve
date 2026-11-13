@@ -1,0 +1,45 @@
+# Example tenant-side Collector configuration. Review with your chosen Collector version.
+# Use Collector Contrib. The dedicated Curve branch converts cumulative
+# counters/histograms to delta and forwards OTLP/HTTP protobuf.
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 127.0.0.1:4317
+      http:
+        endpoint: 127.0.0.1:4318
+processors:
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: 128
+  batch: {}
+  cumulativetodelta/curve:
+    initial_value: drop
+exporters:
+  otlphttp/existing:
+    endpoint: ${env:EXISTING_APM_ENDPOINT}
+    headers:
+      Authorization: ${env:EXISTING_APM_AUTHORIZATION}
+  otlphttp/curve:
+    endpoint: ${env:CURVE_OTLP_BASE_URL}
+    encoding: proto
+    headers:
+      Authorization: Bearer ${env:CURVE_PROJECT_KEY}
+service:
+  pipelines:
+    metrics:
+      receivers: [otlp]
+      processors: [memory_limiter, batch]
+      exporters: [otlphttp/existing]
+    metrics/curve:
+      receivers: [otlp]
+      processors: [memory_limiter, cumulativetodelta/curve, batch]
+      exporters: [otlphttp/curve]
+    traces:
+      receivers: [otlp]
+      processors: [memory_limiter, batch]
+      exporters: [otlphttp/existing]
+    logs:
+      receivers: [otlp]
+      processors: [memory_limiter, batch]
+      exporters: [otlphttp/existing]

@@ -1,0 +1,14 @@
+# Daily web snapshot primitive
+
+Worker shutdown must await the returned `stop()` before closing the database; it drains active work. Batches interleave tenant queues and rotate the first tenant hourly, prioritizing recent missing dates. A failing tenant cannot monopolize a multi-tenant batch.
+
+`server/web-rollups.mjs` provides PostgreSQL-compatible daily aggregate storage. It is not a scheduled retention service until the application integrates it.
+
+Initialize with `initializeWebRollups(db)` after projects exist. Capture completed UTC days with `captureWebDay(db, project, day)`; retry recent days to include late ingestion. Successful captures replace the previous snapshot. Unavailable upstream responses preserve existing data. A scheduler should backfill missing days while raw Umami data remains available and monitor failures. Do not treat a successful empty snapshot of an already-purged upstream day as proof of zero traffic.
+
+`readDailyWeb(db, projectId, startDay, endDay)` returns daily counts, missing dates, completeness, total pageviews and visitor-days. Daily visitors cannot be summed into unique visitors for a date range; `uniqueVisitors` is deliberately null. Pageview totals for incomplete coverage are partial. Bounce rates and average duration are not averaged because the current adapter does not expose their additive denominators. Top-N dimensions are not persisted because their truncation prevents complete aggregation.
+
+`pruneWebRollups(db)` removes aggregates older than 24 calendar months. No raw Umami events are deleted by this module. Before configuring raw-event retention, operators must integrate a durable capture schedule, verify complete historical coverage and backups, and implement a supported Umami-side purge process. Aggregation alone does not establish 24-month reporting compliance. The primitive stores no paths, visitor identifiers, or raw events.
+
+Validation: `node --test tests/web-rollups.test.mjs` exercises real PGlite storage, idempotent replacement, upstream outage preservation, incomplete coverage, visitor semantics and rejection of unfinished UTC days.
+`nThe scheduled worker is startWebMaintenance(db, {intervalMs: 3600000, onResult, onError}); it returns a stop function. runWebMaintenance(db, {now, maxDays: 32, fetchDay}) supports manual runs and deterministic tests. It fills missing completed days from project creation (bounded to the retention window), then revisits yesterday. A process-local lock prevents overlapping runs on the same database handle; multi-process deployments must elect one scheduler. Failed oldest days remain eligible and may delay backlog progress. No raw Umami purge is performed. Capture now requires additive visits, bounces and totalDuration from the adapter, and reports derive weighted bounce rate and average duration from their sums.

@@ -1,0 +1,11 @@
+.git
+.github
+node_modules
+data
+dist
+output
+**/.env
+**/.env.*
+*.log
+.playwright-cli
+public/vendor

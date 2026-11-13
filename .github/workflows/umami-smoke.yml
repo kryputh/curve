@@ -1,0 +1,56 @@
+name: Live Umami smoke check
+on: workflow_dispatch
+permissions:
+  contents: read
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - name: Start the pinned Umami stack
+        shell: bash
+        run: |
+          {
+            printf 'POSTGRES_PASSWORD=%s\n' "$(openssl rand -hex 24)"
+            printf 'APP_SECRET=%s\n' "$(openssl rand -hex 32)"
+            printf 'TWO_FACTOR_ENCRYPTION_KEY=%s\n' "$(openssl rand -hex 32)"
+          } > infra/.env
+          docker compose --env-file infra/.env -f infra/compose.yaml up -d --build
+          for i in {1..60}; do
+            if curl -fsS -m 3 http://127.0.0.1:3100/api/heartbeat >/dev/null 2>&1; then exit 0; fi
+            sleep 2
+          done
+          exit 1
+      - name: Initialize temporary account and run browser check
+        shell: bash
+        run: |
+          export UMAMI_USERNAME=admin
+          export UMAMI_PASSWORD="$(openssl rand -hex 24)"
+          echo "::add-mask::$UMAMI_PASSWORD"
+          export CURVE_CHROMIUM="$(command -v google-chrome)"
+          node --input-type=module <<'NODE'
+          import assert from 'node:assert/strict';
+          const base = 'http://127.0.0.1:3100';
+          const headers = {'Content-Type':'application/json'};
+          const login = await fetch(base+'/api/auth/login', {
+            method:'POST',headers,body:JSON.stringify({username:'admin',password:'umami'}),
+          });
+          assert.ok(login.ok, 'Seeded account login failed');
+          const {token,user} = await login.json();
+          assert.ok(token && user.passwordChangeRequired, 'Expected the fresh database default account');
+          const change = await fetch(base+'/api/me/password', {
+            method:'POST',headers:{...headers,Authorization:'Bearer '+token},
+            body:JSON.stringify({currentPassword:'umami',newPassword:process.env.UMAMI_PASSWORD}),
+          });
+          assert.ok(change.ok, 'Could not initialize the smoke account');
+          NODE
+          node scripts/smoke-umami.mjs
+      - name: Stop temporary services
+        if: always()
+        run: docker compose --env-file infra/.env -f infra/compose.yaml down --volumes

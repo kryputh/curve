@@ -1,0 +1,81 @@
+# Local Umami foundation. This is not a production deployment.
+name: curve-foundation
+services:
+  umami:
+    build:
+      # Umami v3.5.0 at the reviewed tag's full commit.
+      context: https://github.com/umami-software/umami.git#d3c62a805beda8643cb468924dda38617fb4c286
+    ports:
+      - "127.0.0.1:3100:3000"
+    environment:
+      DATABASE_URL: postgresql://umami:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}@postgres:5432/umami
+      APP_SECRET: ${APP_SECRET:?Set APP_SECRET}
+      TWO_FACTOR_ENCRYPTION_KEY: ${TWO_FACTOR_ENCRYPTION_KEY:?Set TWO_FACTOR_ENCRYPTION_KEY}
+      DISABLE_TELEMETRY: "1"
+      ENABLE_CLIENT_SALT: "1"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+  postgres:
+    image: postgres:17.6-alpine
+    environment:
+      POSTGRES_DB: umami
+      POSTGRES_USER: umami
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
+    volumes:
+      - umami-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U umami -d umami"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+  curve:
+    profiles: ["service"]
+    build:
+      context: ..
+    environment:
+      CURVE_DATABASE_URL: postgresql://curve:${CURVE_POSTGRES_PASSWORD:-}@curve-db:5432/curve
+      CURVE_LISTEN_HOST: 0.0.0.0
+      CURVE_PUBLIC_ORIGIN: ${CURVE_PUBLIC_ORIGIN:-}
+      CURVE_ENROLLMENT: ${CURVE_ENROLLMENT:-open}
+      UMAMI_BASE_URL: http://umami:3000
+      UMAMI_USERNAME: ${UMAMI_USERNAME:-}
+      UMAMI_PASSWORD: ${UMAMI_PASSWORD:-}
+      CURVE_TRACKER_FILE: ${CURVE_TRACKER_FILE:-}
+      CURVE_WEB_GATE_SECRET: ${CURVE_WEB_GATE_SECRET:-}
+      CURVE_TRUSTED_PROXY: ${CURVE_TRUSTED_PROXY:-}
+    ports:
+      - "127.0.0.1:3001:3001"
+    volumes:
+      - ../public/vendor:/app/public/vendor:ro
+    depends_on:
+      curve-db:
+        condition: service_healthy
+      umami:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3001/api/health').then(r=>{if(!r.ok)process.exitCode=1}).catch(()=>{process.exitCode=1})"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+  curve-db:
+    profiles: ["service"]
+    image: postgres:17.6-alpine
+    environment:
+      POSTGRES_DB: curve
+      POSTGRES_USER: curve
+      POSTGRES_PASSWORD: ${CURVE_POSTGRES_PASSWORD:-}
+    volumes:
+      - curve-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U curve -d curve"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+volumes:
+  umami-db:
+  curve-db:

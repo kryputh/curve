@@ -1,0 +1,15 @@
+# Full-service delivery plan
+
+Curve gives Stellar projects private website and API analytics. The SCF operator compares projects using a common definition of each metric. Source coverage and exclusions travel with the reviewer export. A digest helps detect edits after export.
+
+| Workstream | Acceptance gate | Current state |
+|---|---|---|
+| Identity and tenancy | A tenant signs in, enrolls a project and cannot read or mutate another tenant's project. Operator credentials are separately provisioned. | Service account flow and authorization checks implemented. Organization membership, operator MFA, account recovery and production gateway controls remain. |
+| Web collection | Three willing SCF-awarded projects use the version-pinned Umami tracker. The operator can trace a live page view through the correct tenant report. | Umami adapter and reproducible smoke check exist. Live validation and pilots remain. |
+| Traffic integrity | Privacy-preserving browser execution checks and short-lived shared-network anomaly signals explain exclusions without exposing IPs to reviewers. | Origin-bound one-use challenges, payload minimization, rotating visitor salt, network limits and aggregate diagnostics are implemented. Live browser/Umami, proxy configuration and privacy review remain. |
+| API collection | A tenant dual-exports standard OTLP to Curve and its own APM. Curve drops traces and logs, attributes metrics from the credential, normalizes route variables and calculates counts, status distributions and p50/p95. | Transactional batch ingestion, deduplication and reporting accept gzip OTLP/HTTP protobuf and JSON. The Collector configuration separates delta conversion from the existing APM export. Live Collector dual export remains to verify. |
+| Storage and capacity | Shared PostgreSQL survives restart, retains daily aggregates for 24 months, and passes a representative million-request/day load and restore exercise. | UTC daily API rollups, replay protection, backfill and expiry implemented. Service and retention tests passed against standalone PostgreSQL 18.6. A local run reconciled 1,008,000 represented requests across 50 test projects. Mixed-load, restore and web retention remain. |
+| Dashboards and operator access | Tenant and operator views expose the required web and API measures, with filterable comparisons, scoped credentials and enrollment controls. | Reports, approval queue and managed Umami provisioning exist. Complete comparison coverage and the live property lifecycle check remain. |
+| Operations and application | Hosting and handover have named owners, tested recovery, privacy assessment, real pilots and verifiable team credentials. | Research, proposal draft and operational plan exist. Confirm cutoff, team evidence and commitments before submitting. |
+
+Build order: finish identity and shared storage, validate both collectors end to end, implement retention and traffic integrity, complete operator workflows, then run the load, pilot and handover acceptance checks. Keep demo fixtures out of service mode.

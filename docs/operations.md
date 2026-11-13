@@ -2,7 +2,7 @@
 
 ## Local preview
 
-Use Node 24+, `npm ci`, then `npm run dev`. Dashboard runs on http://127.0.0.1:5173 and the API on http://127.0.0.1:3001. Local demo login is intentionally not production authentication. Keep both services loopback-bound.
+Use Node 24+, `npm ci`, then `npm run dev`. Dashboard runs on http://127.0.0.1:5173 and the API on http://127.0.0.1:3001. Development opens directly with full local developer access and no login. Projects persist in `data/curve-service`; a new database has no sample traffic. Keep both services loopback-bound. `npm run dev:demo` is a separate, explicit synthetic preview.
 
 ## Service mode
 

@@ -78,6 +78,7 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [booted, setBooted] = useState(false);
   const [serviceMode, setServiceMode] = useState(false);
+  const [developerMode, setDeveloperMode] = useState(false);
   const [register, setRegister] = useState(false);
   const [mode, setMode] = useState<'web' | 'api'>('web');
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -109,6 +110,15 @@ export default function App() {
   const initialize = useCallback(async () => {
     try {
       const health = await api<{ mode: string }>('/api/health');
+      if (health.mode === 'development') {
+        setDeveloperMode(true);
+        setServiceMode(false);
+        setRole('operator');
+        await loadProjects();
+        setBooted(true);
+        setLoading(false);
+        return;
+      }
       if (health.mode !== 'service') return enterDemo('operator');
       setServiceMode(true);
       const response = await fetch('/api/auth/me');
@@ -285,10 +295,10 @@ export default function App() {
       <div className="workspace"><div className="workspace-avatar">S<span>✦</span></div><div><strong>Stellar ecosystem</strong><span>Analytics workspace</span></div><ChevronDown size={15} /></div>
       <div className="nav-label">WORKSPACE</div>
       <nav>{nav.map(({ name, icon: Icon }) => <button key={name} className={`nav-item ${view === name ? 'active' : ''}`} onClick={() => selectView(name)}><Icon size={19} /><span>{name}</span>{name === 'Evidence room' && <span className="nav-dot" />}</button>)}</nav>
-      <div className="sidebar-bottom"><div className="trust-card"><ShieldCheck size={22} /><strong>Good data. Less exposure.</strong><p>Privacy-conscious analytics, built for shared stewardship.</p><button onClick={() => selectView('Evidence room')}>Explore the methodology <ArrowUpRight size={14} /></button></div><div className="sidebar-session"><div className="avatar">{role === 'operator' ? 'SC' : 'TB'}</div><div><strong>{role === 'operator' ? 'SCF operator' : 'Tenant builder'}</strong><span>{serviceMode ? 'Signed in' : 'Local demo session'}</span></div>{serviceMode ? <button aria-label="Sign out" onClick={() => void signOut().catch(err => setError(err.message))}>Exit</button> : <button aria-label="Switch demo role" title="Switch demo role" onClick={() => void enterDemo(role === 'operator' ? 'tenant' : 'operator')}><RefreshCw size={15} /></button>}</div></div>
+      <div className="sidebar-bottom"><div className="trust-card"><ShieldCheck size={22} /><strong>Good data. Less exposure.</strong><p>Privacy-conscious analytics, built for shared stewardship.</p><button onClick={() => selectView('Evidence room')}>Explore the methodology <ArrowUpRight size={14} /></button></div><div className="sidebar-session"><div className="avatar">{role === 'operator' ? 'SC' : 'TB'}</div><div><strong>{developerMode ? 'Developer workspace' : role === 'operator' ? 'SCF operator' : 'Tenant builder'}</strong><span>{developerMode ? 'Full local access' : serviceMode ? 'Signed in' : 'Local demo session'}</span></div>{developerMode ? null : serviceMode ? <button aria-label="Sign out" onClick={() => void signOut().catch(err => setError(err.message))}>Exit</button> : <button aria-label="Switch demo role" title="Switch demo role" onClick={() => void enterDemo(role === 'operator' ? 'tenant' : 'operator')}><RefreshCw size={15} /></button>}</div></div>
     </aside>
     <div className="main-shell">
-      <header className="topbar"><div className="breadcrumb"><button className="mobile-menu icon-button" aria-label="Open navigation" onClick={() => setSidebarOpen(true)}><Menu size={20} /></button><span>Workspace</span><span className="slash">/</span><strong>{view}</strong></div><div className="topbar-right"><span className="local-badge"><i />{serviceMode ? 'Curve service' : 'Local preview'}</span><button className="icon-button" aria-label="View methodology" onClick={() => selectView('Evidence room')}><CircleHelp size={19} /></button><span className="top-avatar">{role === 'operator' ? 'SC' : 'TB'}</span></div></header>
+      <header className="topbar"><div className="breadcrumb"><button className="mobile-menu icon-button" aria-label="Open navigation" onClick={() => setSidebarOpen(true)}><Menu size={20} /></button><span>Workspace</span><span className="slash">/</span><strong>{view}</strong></div><div className="topbar-right"><span className="local-badge"><i />{developerMode ? 'Development' : serviceMode ? 'Curve service' : 'Local preview'}</span><button className="icon-button" aria-label="View methodology" onClick={() => selectView('Evidence room')}><CircleHelp size={19} /></button><span className="top-avatar">{role === 'operator' ? 'SC' : 'TB'}</span></div></header>
       <main>
         <div className="page-heading"><div><div className="eyebrow">STELLAR PROJECT ANALYTICS</div><h1>{view}</h1><p>{titleCopy[view]}</p></div><button className="primary-button" onClick={() => { setCreatedKey(''); setModal(true); }}><Plus size={16} />Add project</button></div>
         <div className="toolbar"><label className="project-select"><span className="project-icon"><Globe2 size={17} /></span><select value={projectId} onChange={e => setProjectId(e.target.value)} aria-label="Select project">{projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}{!projects.length && <option>No projects</option>}</select><ChevronDown size={14} /></label><div className="toolbar-right"><div className="range-switch" aria-label="Date range"><select aria-label="Reporting period" value={days} onChange={event => setDays(Number(event.target.value))}>

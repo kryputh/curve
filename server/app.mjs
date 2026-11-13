@@ -17,8 +17,11 @@ const daysOf=req=>[7,30,90,365,731].includes(Number(req.query.days))?Number(req.
 const method={version:'curve-0.2',notes:['Web metrics originate from Umami frontend instrumentation; API metrics originate from authenticated tenant OTLP delta exports.','Synthetic demo fixtures are never mixed into newly enrolled projects.','Latency percentiles are histogram bucket upper-bound estimates. Null means an unbounded bucket or insufficient compatible histogram data; no finite percentile is claimed.','API counts use UTC daily rollups; recent diagnostics contain the last eight days of retained export points.','API errors include HTTP 4xx and 5xx. Unique visitors are Umami estimates, not verified people.','Web last-event time and coverage are unknown for live Umami snapshots; zero values with not-configured/unavailable source state mean missing data, not measured zero usage.','A digest verifies report integrity, not genuine traffic or independent attestation.']};
 const cleanProject=row=>{const {key_hash,owner_id,...p}=row;return {id:p.id,name:p.name,domain:p.domain,network:p.network,isDemo:p.is_demo,createdAt:p.created_at,umamiWebsiteId:p.umami_website_id,enrollment:p.enrollment};};
 
-export async function createApp({dataDir='memory://',databaseUrl,seed=!databaseUrl,mode=databaseUrl?'service':'local-demo',publicOrigin,enrollmentMode='open'}={}) {
+export async function createApp({dataDir='memory://',databaseUrl,mode=databaseUrl?'service':'local-demo',seed=mode==='local-demo',publicOrigin,enrollmentMode='open'}={}) {
   const service = mode === 'service';
+  const development = mode === 'development';
+  if (!['development','service','local-demo'].includes(mode)) throw new Error('Invalid application mode.');
+  if (development && (publicOrigin || seed)) throw new Error('Development mode requires a local origin and no seeded data.');
   if (!['open','approval'].includes(enrollmentMode)) throw new Error('Invalid enrollment mode.');
 
   const origin = publicOrigin ? new URL(publicOrigin) : null;
@@ -120,6 +123,10 @@ export async function createApp({dataDir='memory://',databaseUrl,seed=!databaseU
     return jsonParser(req,res,next);
   });
   if (service) mountAccounts(app, db, Boolean(origin));
+  else if (development) app.use((req,_res,next)=>{
+    req.user={id:'local-developer',role:'operator',name:'Developer'};
+    next();
+  });
   else app.use((req,res,next)=>{
     const cookie=req.headers.cookie?.match(/(?:^|;\s*)curve_session=([a-f0-9]+)/)?.[1];
     const session=cookie&&sessions.get(cookie);if(session&&session.expires>Date.now())req.user=session.user;
@@ -128,14 +135,14 @@ export async function createApp({dataDir='memory://',databaseUrl,seed=!databaseU
   const requireAuth=(req,res,next)=>req.user?next():res.status(401).json({error:'Sign in to continue.'});
   const operator=(req,res,next)=>req.user?.role==='operator'?next():res.status(403).json({error:'Operator access required'});
   app.get('/api/health',(req,res)=>res.json({status:'ok',mode,database:databaseUrl?'PostgreSQL server':'PGlite PostgreSQL',productionReady:false}));
-  if (!service) app.post('/api/auth/demo',(req,res)=>{
+  if (mode === 'local-demo') app.post('/api/auth/demo',(req,res)=>{
     if(!['tenant','operator'].includes(req.body.role))return res.status(400).json({error:'role must be tenant or operator'});
     const role=req.body.role,user={id:role==='tenant'?'demo-tenant':'demo-operator',role,name:role==='tenant'?'Demo builder':'SCF operator demo'};
     const session=randomBytes(32).toString('hex');sessions.set(session,{user,expires:Date.now()+8*3600000});
     res.cookie('curve_session',session,{httpOnly:true,sameSite:'strict',maxAge:8*3600000,path:'/'}).json({user,session:user,mode:'local-demo'});
   });
   app.get('/api/auth/me',requireAuth,(req,res)=>res.json({user:req.user,session:req.user,mode}));
-  if (!service) app.post('/api/auth/logout',(req,res)=>{const token=req.headers.cookie?.match(/curve_session=([a-f0-9]+)/)?.[1];sessions.delete(token);res.clearCookie('curve_session').json({ok:true});});
+  if (mode === 'local-demo') app.post('/api/auth/logout',(req,res)=>{const token=req.headers.cookie?.match(/curve_session=([a-f0-9]+)/)?.[1];sessions.delete(token);res.clearCookie('curve_session').json({ok:true});});
   const lookup=async(id)=> (await db.query('SELECT * FROM projects WHERE id=$1',[id])).rows[0];
   const access=async(req,res,next)=>{
     const p=await lookup(req.params.id);

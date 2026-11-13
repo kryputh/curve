@@ -11,9 +11,9 @@ npm ci
 npm run dev
 ```
 
-Open [Curve](http://127.0.0.1:5173), create an account and add a project. Normal startup uses real accounts and an empty database, persisted in `data/curve-service` using PGlite PostgreSQL. Configure both sources below to receive usage. Missing sources are shown as unavailable.
+Open [Curve](http://127.0.0.1:5173) and add a project. Development opens directly with full developer access: no login, registration or role switching. New databases start empty; projects persist in `data/curve-service` using PGlite PostgreSQL. Configure both sources below to receive usage. Missing sources are shown as unavailable.
 
-To create an operator, stop the local server, supply `CURVE_OPERATOR_USERNAME` and `CURVE_OPERATOR_PASSWORD` as environment variables, run `node scripts/create-operator.mjs`, then restart. The script refuses to overwrite an existing username. Local PGlite supports one application process.
+Local PGlite supports one application process. Development access is limited to loopback. Account authentication is reserved for explicit service mode and is not required while building the application.
 
 For shared deployment, set `CURVE_DATABASE_URL` to a separate PostgreSQL database. Set `CURVE_PUBLIC_ORIGIN` to the HTTPS origin behind a configured reverse proxy. Run `npm run build` and `npm start`. See [operations](docs/operations.md) for the complete container setup and enrollment policy.
 
